@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
+import os
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from src.state import AgentState
 
 # Import Agents
@@ -12,7 +13,14 @@ from src.agents.execution_agent import ExecutionAgent
 
 def create_graph():
     # Initialize LLM
-    llm = ChatOpenAI(model="gpt-4o")
+    model_name = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    
+    llm = ChatOllama(
+        model=model_name,
+        base_url=base_url,
+        temperature=0
+    )
 
     # Initialize Agents
     data_agent = DataAgent(llm)
