@@ -77,34 +77,53 @@ class QuantAgent(BaseAgent):
         print(f"  Bullish Crossover: {bullish_cross}")
         print(f"  Bearish Crossover: {bearish_cross}")
         
+        # Get sentiment score
+        sentiment_score = state.get("sentiment_score", 0.5)
+        self.log(f"Sentiment Score: {sentiment_score:.2f}", "info")
+        
         # Trading strategy logic
         signal = TradeSignal.HOLD
         reasoning = []
         
+        # Adjust thresholds based on sentiment
+        # Bullish sentiment -> Relax buy thresholds, tighten sell thresholds
+        # Bearish sentiment -> Tighten buy thresholds, relax sell thresholds
+        buy_rsi_threshold = 30
+        sell_rsi_threshold = 70
+        
+        if sentiment_score > 0.6:
+            buy_rsi_threshold = 40  # Easier to buy
+            sell_rsi_threshold = 80 # Harder to sell
+            reasoning.append(f"Bullish sentiment ({sentiment_score:.2f}) -> Adjusted thresholds")
+        elif sentiment_score < 0.4:
+            buy_rsi_threshold = 20  # Harder to buy
+            sell_rsi_threshold = 60 # Easier to sell
+            reasoning.append(f"Bearish sentiment ({sentiment_score:.2f}) -> Adjusted thresholds")
+        
         # BUY conditions
-        if current_rsi < 30:
-            reasoning.append(f"RSI is oversold ({current_rsi:.2f} < 30)")
+        if current_rsi < buy_rsi_threshold:
+            reasoning.append(f"RSI is oversold ({current_rsi:.2f} < {buy_rsi_threshold})")
             if bullish_cross:
                 signal = TradeSignal.BUY
                 reasoning.append("MACD bullish crossover detected")
             elif current_macd > current_signal:
                 signal = TradeSignal.BUY
                 reasoning.append("MACD above signal line")
-        elif 30 <= current_rsi <= 50 and bullish_cross:
+        elif buy_rsi_threshold <= current_rsi <= 50 and bullish_cross:
             signal = TradeSignal.BUY
             reasoning.append(f"RSI in neutral zone ({current_rsi:.2f})")
             reasoning.append("MACD bullish crossover detected")
         
         # SELL conditions
-        elif current_rsi > 70:
-            reasoning.append(f"RSI is overbought ({current_rsi:.2f} > 70)")
+        elif current_rsi > sell_rsi_threshold:
+            reasoning.append(f"RSI is overbought ({current_rsi:.2f} > {sell_rsi_threshold})")
             if bearish_cross:
                 signal = TradeSignal.SELL
                 reasoning.append("MACD bearish crossover detected")
             elif current_macd < current_signal:
                 signal = TradeSignal.SELL
                 reasoning.append("MACD below signal line")
-        elif 50 <= current_rsi <= 70 and bearish_cross:
+        elif 50 <= current_rsi <= sell_rsi_threshold and bearish_cross:
             signal = TradeSignal.SELL
             reasoning.append(f"RSI in neutral-high zone ({current_rsi:.2f})")
             reasoning.append("MACD bearish crossover detected")

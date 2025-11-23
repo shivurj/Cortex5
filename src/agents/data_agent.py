@@ -59,6 +59,14 @@ class DataAgent(BaseAgent):
         
         self.log(f"Ticker identified: {ticker}", "info", {"ticker": ticker})
         
+        # Check if market data is already provided (e.g., during backtesting)
+        if "market_data" in state and isinstance(state["market_data"], pd.DataFrame) and not state["market_data"].empty:
+            self.log("Using pre-loaded market data from state", "info")
+            return {
+                "messages": [AIMessage(content=f"Using pre-loaded market data for {ticker}")],
+                "market_data": state["market_data"]
+            }
+        
         # Check if data already exists in database
         self._ensure_db_connection()
         

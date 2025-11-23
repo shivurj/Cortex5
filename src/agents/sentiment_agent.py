@@ -72,6 +72,10 @@ class SentimentAgent(BaseAgent):
         # Ensure connections
         self._ensure_connections()
         
+        # Initialize NewsFetcher
+        from src.data.news_fetcher import NewsFetcher
+        news_fetcher = NewsFetcher()
+        
         if not self.vector_store or not self.embedding_gen:
             print("⚠ Vector store or embedding generator not available, using neutral sentiment")
             return {
@@ -79,20 +83,57 @@ class SentimentAgent(BaseAgent):
                 "sentiment_score": 0.5
             }
         
+        # Determine current simulation time from market data
+        current_time = None
+        if 'timestamp' in market_data.columns:
+            current_time = pd.to_datetime(market_data['timestamp'].iloc[-1]).to_pydatetime()
+        
         # Query for relevant news
         try:
             self.log(f"Searching for news about {ticker}...", "status")
             query_text = f"news about {ticker} stock market performance"
             
+            # Search in DB with date filter
             results = self.vector_store.search_by_text(
                 query_text=query_text,
                 embedding_generator=self.embedding_gen,
                 ticker=ticker,
-                top_k=5
+                top_k=5,
+                published_before=current_time
             )
             
+            # If no results and current_time is recent (e.g., last 7 days), try fetching live news
+            # Note: We can only fetch "live" news, so if backtest is in the past, we can't easily backfill
+            # unless we have a historical news API. yfinance gives "recent" news.
+            # So we only fetch if current_time is close to now.
+            is_recent = False
+            if current_time:
+                time_diff = datetime.now() - current_time
+                if time_diff.days < 7:
+                    is_recent = True
+            
+            if not results and is_recent:
+                self.log("No news in DB, fetching from external source...", "status")
+                fetched_docs = news_fetcher.fetch_news(ticker, limit=5)
+                
+                if fetched_docs:
+                    # Generate embeddings and upsert to DB
+                    for doc in fetched_docs:
+                        doc.embedding = self.embedding_gen.generate_embedding(doc.title)
+                    
+                    self.vector_store.upsert_documents(fetched_docs)
+                    
+                    # Search again
+                    results = self.vector_store.search_by_text(
+                        query_text=query_text,
+                        embedding_generator=self.embedding_gen,
+                        ticker=ticker,
+                        top_k=5,
+                        published_before=current_time
+                    )
+            
             if not results:
-                print(f"⚠ No news found for {ticker}, using neutral sentiment")
+                print(f"⚠ No news found for {ticker} before {current_time}, using neutral sentiment")
                 return {
                     "messages": [AIMessage(content=f"No recent news found for {ticker}")],
                     "sentiment_score": 0.5

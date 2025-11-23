@@ -160,7 +160,8 @@ class QdrantVectorStore:
         ticker: Optional[str] = None,
         top_k: int = 5,
         score_threshold: Optional[float] = None,
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        published_before: Optional[datetime] = None
     ) -> List[SearchResult]:
         """
         Search for similar documents using vector similarity.
@@ -171,6 +172,7 @@ class QdrantVectorStore:
             top_k: Number of results to return
             score_threshold: Minimum similarity score (0-1)
             collection_name: Collection to search (uses default if None)
+            published_before: Filter for news published before this time
             
         Returns:
             List of SearchResult objects
@@ -181,22 +183,35 @@ class QdrantVectorStore:
         collection_name = collection_name or self.collection_name
         
         try:
-            # Build filter if ticker is specified
-            query_filter = None
+            # Build filter
+            must_conditions = []
+            
+            # Ticker filter
             if ticker:
-                query_filter = Filter(
-                    must=[
-                        FieldCondition(
-                            key="ticker",
-                            match=MatchValue(value=ticker.upper())
-                        )
-                    ]
+                must_conditions.append(
+                    FieldCondition(
+                        key="ticker",
+                        match=MatchValue(value=ticker.upper())
+                    )
                 )
             
+            # Date filter (prevent look-ahead bias)
+            if published_before:
+                from qdrant_client.models import Range
+                must_conditions.append(
+                    FieldCondition(
+                        key="published_at",
+                        range=Range(
+                            lte=published_before.isoformat()
+                        )
+                    )
+                )
+            
+            query_filter = None
+            if must_conditions:
+                query_filter = Filter(must=must_conditions)
+            
             # Perform search
-            # Note: using search() method which is standard in v1.x
-            # If search() is missing, it might be an older/newer version issue
-            # trying query_points as fallback or primary if search fails
             try:
                 search_results = self.client.search(
                     collection_name=collection_name,
@@ -206,9 +221,10 @@ class QdrantVectorStore:
                     score_threshold=score_threshold
                 )
             except AttributeError:
-                # Fallback for versions where search might be named differently or if using AsyncQdrantClient accidentally
-                # But here we use synchronous QdrantClient. 
-                # Let's try query_points which is the lower level API
+                # Fallback for older Qdrant client versions or specific configurations
+                # where `search` might not directly accept `query_vector` or `query_filter`
+                # and `query_points` is used.
+                # Note: `query_points` expects `query` instead of `query_vector`.
                 search_results = self.client.query_points(
                     collection_name=collection_name,
                     query=query_vector,
@@ -246,7 +262,8 @@ class QdrantVectorStore:
         embedding_generator,
         ticker: Optional[str] = None,
         top_k: int = 5,
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        published_before: Optional[datetime] = None
     ) -> List[SearchResult]:
         """
         Search for similar documents using text query.
@@ -257,6 +274,7 @@ class QdrantVectorStore:
             ticker: Filter results by ticker symbol (optional)
             top_k: Number of results to return
             collection_name: Collection to search (uses default if None)
+            published_before: Filter for news published before this time
             
         Returns:
             List of SearchResult objects
@@ -269,7 +287,8 @@ class QdrantVectorStore:
             query_vector=query_vector,
             ticker=ticker,
             top_k=top_k,
-            collection_name=collection_name
+            collection_name=collection_name,
+            published_before=published_before
         )
     
     def get_collection_info(
