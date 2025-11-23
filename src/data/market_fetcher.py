@@ -26,6 +26,43 @@ class MarketDataFetcher:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
     
+    def _validate_interval_period(
+        self,
+        interval: str,
+        period: str,
+        start_date: Optional[datetime],
+        end_date: Optional[datetime]
+    ) -> None:
+        """
+        Validate interval and period compatibility.
+        
+        yfinance limitations:
+        - Intraday data (1m, 5m, 15m, 30m, 1h) only available for last 60 days
+        - Using custom date range with intraday requires dates within 60 days
+        
+        Raises:
+            DataFetchError: If interval/period combination is invalid
+        """
+        intraday_intervals = ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h']
+        
+        if interval in intraday_intervals:
+            # Check if using custom date range
+            if start_date and end_date:
+                days_diff = (end_date - start_date).days
+                if days_diff > 60:
+                    raise DataFetchError(
+                        f"Intraday data (interval={interval}) only available for last 60 days. "
+                        f"Requested range: {days_diff} days. Please reduce date range."
+                    )
+            else:
+                # Check period validity for intraday
+                valid_intraday_periods = ['1d', '5d', '1mo', '60d']
+                if period not in valid_intraday_periods:
+                    raise DataFetchError(
+                        f"Period '{period}' not compatible with intraday interval '{interval}'. "
+                        f"Valid periods for intraday: {valid_intraday_periods}"
+                    )
+    
     def fetch_ohlcv(
         self,
         ticker: str,
@@ -51,6 +88,9 @@ class MarketDataFetcher:
             DataFetchError: If data cannot be fetched after retries or ticker is invalid
         """
         ticker = ticker.upper().strip()
+        
+        # Validate interval and period compatibility
+        self._validate_interval_period(interval, period, start_date, end_date)
         
         for attempt in range(self.max_retries):
             try:

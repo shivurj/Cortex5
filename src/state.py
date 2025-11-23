@@ -10,7 +10,7 @@ class TradeSignal(str, Enum):
 
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
-    market_data: Dict[str, Any]
+    market_data: Any
     sentiment_score: float
     trade_signal: TradeSignal
     risk_approval: bool
