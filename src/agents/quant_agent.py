@@ -9,11 +9,12 @@ from src.utils.indicators import calculate_rsi, calculate_macd, detect_macd_cros
 class QuantAgent(BaseAgent):
     """Quant Agent responsible for technical analysis and trade signal generation."""
     
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         super().__init__(
             name="QuantAgent",
             model=model,
-            tools=[]
+            tools=[],
+            callback=callback
         )
         self.system_prompt = (
             "You are the Quant Researcher. You analyze the `market_data` provided by the Data Agent "
@@ -27,9 +28,7 @@ class QuantAgent(BaseAgent):
         
         Uses RSI and MACD indicators to determine BUY/SELL/HOLD signals.
         """
-        print(f"\n{'='*60}")
-        print(f"🟢 {self.name} Starting")
-        print(f"{'='*60}")
+        self.log("Starting technical analysis...", "status")
         
         # Get market data
         market_data = state.get("market_data", {})
@@ -43,7 +42,7 @@ class QuantAgent(BaseAgent):
         
         # Extract ticker
         ticker = market_data['symbol'].iloc[0] if 'symbol' in market_data.columns else 'UNKNOWN'
-        print(f"📊 Analyzing: {ticker}")
+        self.log(f"Analyzing: {ticker}", "info")
         
         # Ensure we have enough data
         if len(market_data) < 26:  # Need at least 26 periods for MACD
@@ -54,7 +53,7 @@ class QuantAgent(BaseAgent):
             }
         
         # Calculate technical indicators
-        print("📈 Calculating technical indicators...")
+        self.log("Calculating technical indicators...", "status")
         
         prices = market_data['close']
         
@@ -118,8 +117,7 @@ class QuantAgent(BaseAgent):
         # Compile reasoning
         reasoning_text = " | ".join(reasoning)
         
-        print(f"\n🎯 Signal: {signal.value}")
-        print(f"💡 Reasoning: {reasoning_text}")
+        self.log(f"Signal: {signal.value} | {reasoning_text}", "success", {"signal": signal.value, "rsi": current_rsi, "macd": current_macd})
         
         return {
             "messages": [AIMessage(content=f"Technical Analysis for {ticker}: {signal.value}. {reasoning_text}")],

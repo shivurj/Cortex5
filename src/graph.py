@@ -11,7 +11,7 @@ from src.agents.quant_agent import QuantAgent
 from src.agents.risk_agent import RiskAgent
 from src.agents.execution_agent import ExecutionAgent
 
-def create_graph():
+def create_graph(callback=None):
     # Initialize LLM
     model_name = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
     base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -23,11 +23,11 @@ def create_graph():
     )
 
     # Initialize Agents
-    data_agent = DataAgent(llm)
-    sentiment_agent = SentimentAgent(llm)
-    quant_agent = QuantAgent(llm)
-    risk_agent = RiskAgent(llm)
-    execution_agent = ExecutionAgent(llm)
+    data_agent = DataAgent(llm, callback=callback)
+    sentiment_agent = SentimentAgent(llm, callback=callback)
+    quant_agent = QuantAgent(llm, callback=callback)
+    risk_agent = RiskAgent(llm, callback=callback)
+    execution_agent = ExecutionAgent(llm, callback=callback)
 
     # Define the graph
     workflow = StateGraph(AgentState)

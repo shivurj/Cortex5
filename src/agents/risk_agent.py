@@ -8,11 +8,12 @@ from src.utils.risk_manager import RiskManager
 class RiskAgent(BaseAgent):
     """Risk Agent responsible for validating trades against risk parameters."""
     
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         super().__init__(
             name="RiskAgent",
             model=model,
-            tools=[]
+            tools=[],
+            callback=callback
         )
         self.system_prompt = (
             "You are the Risk Manager. You are the gatekeeper. You review the `trade_signal`. "
@@ -29,14 +30,12 @@ class RiskAgent(BaseAgent):
         
         Checks position size, volatility, sentiment, and capital availability.
         """
-        print(f"\n{'='*60}")
-        print(f"🟠 {self.name} Starting")
-        print(f"{'='*60}")
+        self.log("Starting risk assessment...", "status")
         
         # Get trade signal
         trade_signal = state.get("trade_signal", TradeSignal.HOLD)
         
-        print(f"📋 Trade Signal: {trade_signal.value if hasattr(trade_signal, 'value') else trade_signal}")
+        self.log(f"Trade Signal: {trade_signal.value if hasattr(trade_signal, 'value') else trade_signal}", "info")
         
         # If HOLD, no risk checks needed
         if trade_signal == TradeSignal.HOLD or trade_signal == "HOLD":
@@ -47,7 +46,7 @@ class RiskAgent(BaseAgent):
             }
         
         # Perform risk checks
-        print("🔍 Performing risk checks...")
+        self.log("Performing risk checks...", "status")
         approved, reasons = self.risk_manager.approve_trade(state)
         
         # Print results
@@ -59,9 +58,9 @@ class RiskAgent(BaseAgent):
         print(f"{'='*60}")
         
         if approved:
-            print(f"✅ Trade APPROVED")
+            self.log(f"Trade APPROVED: {' | '.join(reasons)}", "success")
         else:
-            print(f"❌ Trade REJECTED")
+            self.log(f"Trade REJECTED: {' | '.join(reasons)}", "error")
         
         # Compile message
         status = "APPROVED" if approved else "REJECTED"

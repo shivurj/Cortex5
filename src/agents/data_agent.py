@@ -11,11 +11,12 @@ from src.data.db_client import TimescaleDBClient, DatabaseError
 class DataAgent(BaseAgent):
     """Data Agent responsible for fetching and storing market data."""
     
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         super().__init__(
             name="DataAgent",
             model=model,
-            tools=[]
+            tools=[],
+            callback=callback
         )
         self.system_prompt = (
             "You are the Data Engineer. Your job is to fetch raw OHLCV data from Yahoo Finance "
@@ -43,22 +44,20 @@ class DataAgent(BaseAgent):
         Extracts ticker from the user's message, fetches OHLCV data,
         validates it, stores in TimescaleDB, and updates state.
         """
-        print(f"\n{'='*60}")
-        print(f"🔵 {self.name} Starting")
-        print(f"{'='*60}")
+        self.log("Starting analysis...", "status")
         
         # Extract ticker from messages
         ticker = self._extract_ticker(state)
         
         if not ticker:
             error_msg = "Could not extract ticker symbol from message"
-            print(f"✗ {error_msg}")
+            self.log(error_msg, "error")
             return {
                 "messages": [AIMessage(content=error_msg)],
                 "market_data": {}
             }
         
-        print(f"📊 Ticker: {ticker}")
+        self.log(f"Ticker identified: {ticker}", "info", {"ticker": ticker})
         
         # Check if data already exists in database
         self._ensure_db_connection()
@@ -67,7 +66,7 @@ class DataAgent(BaseAgent):
             try:
                 existing_data = self.db_client.query_market_data(ticker, limit=30)
                 if not existing_data.empty:
-                    print(f"✓ Found {len(existing_data)} existing records in database")
+                    self.log(f"Found {len(existing_data)} existing records in database", "success")
                     return {
                         "messages": [AIMessage(content=f"Retrieved {len(existing_data)} records for {ticker} from database")],
                         "market_data": existing_data
@@ -77,14 +76,14 @@ class DataAgent(BaseAgent):
         
         # Fetch fresh data from Yahoo Finance
         try:
-            print(f"📥 Fetching data from Yahoo Finance...")
+            self.log("Fetching data from Yahoo Finance...", "status")
             df = self.fetcher.fetch_ohlcv(ticker, period="3mo", interval="1d")
-            print(f"✓ Fetched {len(df)} rows")
+            self.log(f"Fetched {len(df)} rows", "success")
             
             # Validate data
-            print(f"🔍 Validating data...")
+            self.log("Validating data...", "status")
             validate_ohlcv_data(df)
-            print(f"✓ Data validation passed")
+            self.log("Data validation passed", "success")
             
             # Store in database if available
             if self.db_client:
@@ -100,7 +99,7 @@ class DataAgent(BaseAgent):
             
         except (DataFetchError, DataValidationError) as e:
             error_msg = f"Failed to fetch/validate data for {ticker}: {str(e)}"
-            print(f"✗ {error_msg}")
+            self.log(error_msg, "error")
             return {
                 "messages": [AIMessage(content=error_msg)],
                 "market_data": pd.DataFrame()

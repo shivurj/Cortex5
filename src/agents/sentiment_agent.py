@@ -9,11 +9,12 @@ from src.data.embeddings import EmbeddingGenerator, EmbeddingError
 class SentimentAgent(BaseAgent):
     """Sentiment Agent responsible for RAG-based sentiment analysis."""
     
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         super().__init__(
             name="SentimentAgent",
             model=model,
-            tools=[]
+            tools=[],
+            callback=callback
         )
         self.system_prompt = (
             "You are the Sentiment Analyst. Your job is to read news headlines and output a sentiment score "
@@ -46,9 +47,7 @@ class SentimentAgent(BaseAgent):
         
         Retrieves relevant news from Qdrant and uses LLM to analyze sentiment.
         """
-        print(f"\n{'='*60}")
-        print(f"🟡 {self.name} Starting")
-        print(f"{'='*60}")
+        self.log("Starting sentiment analysis...", "status")
         
         # Extract ticker from market data
         market_data = state.get("market_data", {})
@@ -68,7 +67,7 @@ class SentimentAgent(BaseAgent):
                 "sentiment_score": 0.5
             }
         
-        print(f"📊 Analyzing sentiment for: {ticker}")
+        self.log(f"Analyzing sentiment for: {ticker}", "info")
         
         # Ensure connections
         self._ensure_connections()
@@ -82,7 +81,7 @@ class SentimentAgent(BaseAgent):
         
         # Query for relevant news
         try:
-            print(f"🔍 Searching for news about {ticker}...")
+            self.log(f"Searching for news about {ticker}...", "status")
             query_text = f"news about {ticker} stock market performance"
             
             results = self.vector_store.search_by_text(
@@ -99,7 +98,7 @@ class SentimentAgent(BaseAgent):
                     "sentiment_score": 0.5
                 }
             
-            print(f"✓ Found {len(results)} relevant news articles")
+            self.log(f"Found {len(results)} relevant news articles", "success")
             
             # Prepare news context for LLM
             news_context = "\n\n".join([
@@ -132,8 +131,6 @@ Respond with ONLY a number between 0.0 and 1.0, nothing else."""
                 print(f"⚠ Could not parse sentiment score from LLM response: {response.content}")
                 sentiment_score = 0.5
             
-            print(f"✓ Sentiment Score: {sentiment_score:.2f}")
-            
             # Determine sentiment label
             if sentiment_score >= 0.6:
                 label = "Bullish"
@@ -141,6 +138,8 @@ Respond with ONLY a number between 0.0 and 1.0, nothing else."""
                 label = "Bearish"
             else:
                 label = "Neutral"
+            
+            self.log(f"Sentiment Score: {sentiment_score:.2f} ({label})", "success", {"score": sentiment_score, "label": label})
             
             return {
                 "messages": [AIMessage(content=f"Sentiment analysis for {ticker}: {label} (score: {sentiment_score:.2f})")],

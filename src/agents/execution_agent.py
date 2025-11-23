@@ -8,11 +8,12 @@ from src.data.db_client import TimescaleDBClient, DatabaseError
 class ExecutionAgent(BaseAgent):
     """Execution Agent responsible for logging approved trades."""
     
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         super().__init__(
             name="ExecutionAgent",
             model=model,
-            tools=[]
+            tools=[],
+            callback=callback
         )
         self.system_prompt = (
             "You are the Head Trader. You only execute if `risk_approval` is True. "
@@ -38,21 +39,19 @@ class ExecutionAgent(BaseAgent):
         
         Only executes if risk_approval is True.
         """
-        print(f"\n{'='*60}")
-        print(f"🔴 {self.name} Starting")
-        print(f"{'='*60}")
+        self.log("Starting execution...", "status")
         
         # Check risk approval
         risk_approval = state.get("risk_approval", False)
         trade_signal = state.get("trade_signal", TradeSignal.HOLD)
         
-        print(f"📋 Trade Signal: {trade_signal.value if hasattr(trade_signal, 'value') else trade_signal}")
-        print(f"🔒 Risk Approval: {risk_approval}")
+        self.log(f"Trade Signal: {trade_signal.value if hasattr(trade_signal, 'value') else trade_signal}", "info")
+        self.log(f"Risk Approval: {risk_approval}", "info")
         
         # If not approved or HOLD, don't execute
         if not risk_approval or trade_signal == TradeSignal.HOLD or trade_signal == "HOLD":
             status = "NOT_EXECUTED - Risk not approved" if not risk_approval else "NOT_EXECUTED - Signal is HOLD"
-            print(f"⏸️  {status}")
+            self.log(status, "info")
             return {
                 "messages": [AIMessage(content=status)],
                 "execution_status": status
@@ -63,7 +62,7 @@ class ExecutionAgent(BaseAgent):
         
         if isinstance(market_data, dict) or (hasattr(market_data, 'empty') and market_data.empty):
             status = "FAILED - No market data available"
-            print(f"✗ {status}")
+            self.log(status, "error")
             return {
                 "messages": [AIMessage(content=status)],
                 "execution_status": status
@@ -79,12 +78,13 @@ class ExecutionAgent(BaseAgent):
         # Determine side
         side = trade_signal.value if hasattr(trade_signal, 'value') else str(trade_signal)
         
-        print(f"\n📊 Executing Trade:")
-        print(f"  Symbol: {ticker}")
-        print(f"  Side: {side}")
-        print(f"  Quantity: {quantity}")
-        print(f"  Price: ${current_price:.2f}")
-        print(f"  Total Value: ${quantity * current_price:.2f}")
+        self.log(f"Executing Trade: {side} {quantity} {ticker} @ ${current_price:.2f}", "status", {
+            "symbol": ticker,
+            "side": side,
+            "quantity": quantity,
+            "price": current_price,
+            "total_value": quantity * current_price
+        })
         
         # Log to database
         self._ensure_db_connection()
@@ -103,13 +103,13 @@ class ExecutionAgent(BaseAgent):
                     notes=f"Automated trade execution by Cortex5"
                 )
                 status = f"EXECUTED - Trade ID: {trade_id}"
-                print(f"✅ {status}")
+                self.log(status, "success")
             except DatabaseError as e:
                 status = f"LOGGED_LOCALLY - DB Error: {str(e)}"
-                print(f"⚠ {status}")
+                self.log(status, "error")
         else:
             status = f"SIMULATED - {side} {quantity} {ticker} @ ${current_price:.2f} (DB not available)"
-            print(f"⚠ {status}")
+            self.log(status, "warning")
         
         return {
             "messages": [AIMessage(content=status)],
