@@ -253,14 +253,17 @@
         > 3. Track total graph execution time in `main.py`.
         > Use Python's `time.perf_counter()` for precision."
 
-*   **Task 4.2.2**: Create Performance Benchmarks. [ ]
+*   **Task 4.2.1**: Benchmark Data Pipeline. [x]
     *   **Agent Prompt**:
-        > "Create `tests/test_performance.py`. Benchmark:
-        > 1. Data fetching speed (100 days of AAPL data).
-        > 2. Embedding generation speed (100 news articles).
-        > 3. Vector search latency (query with top_k=10).
-        > 4. Full graph execution time (single ticker analysis).
-        > Assert that each operation completes within reasonable thresholds (e.g., graph < 10 seconds)."
+        > "Create `tests/test_performance.py`. Measure execution time for:
+        > 1. Fetching 1 month of data.
+        > 2. Generating embeddings for 10 articles.
+        > 3. Vector search latency.
+        > Fail if any exceeds defined thresholds (e.g., search > 100ms)."
+
+*   **Task 4.2.2**: Stress Test Database. [x]
+    *   **Agent Prompt**:
+        > "Add a test to `tests/test_performance.py` that inserts 1000 rows of market data and measures throughput. Ensure it handles the load without errors."
 
 ---
 
