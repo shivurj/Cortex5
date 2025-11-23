@@ -1,118 +1,114 @@
 # Cortex 5 - Day 1 Learnings: The Foundation of an AI Hedge Fund
-## Interview Preparation Guide
 
-**Objective**: Translate the technical work of Day 1 into articulate, high-level concepts suitable for a System Design or AI Engineering interview.
+## 📝 Executive Summary
+Day 1 was focused on **Genesis**—creating the universe in which our AI agents will live. We successfully established the infrastructure (Docker, Kubernetes), defined the "Council of Agents" architecture using LangGraph, and implemented the initial communication flow. Crucially, we pivoted from a cloud-dependent LLM (OpenAI) to a local, controllable inference engine (Ollama), ensuring data privacy and cost control.
 
 ---
 
-## 1. The "Council of Agents" Pattern
-**Concept**: Instead of one giant LLM trying to do everything, we split responsibilities into specialized "Agents". This mimics a real human organization.
+## 1. The "Council of Agents" Architecture
+**Concept**: A multi-agent system where specialized agents collaborate to make trading decisions. We moved away from a monolithic LLM approach to a distributed "Micro-Cognition" architecture.
 
-**Interview Soundbite**: *"I implemented a Multi-Agent System using LangGraph, where state is shared but execution is distributed. It's like a microservices architecture, but for cognition."*
-
-### ASCII Visualization: The State Graph
+### ASCII Visualization: The Agent Workflow
 ```ascii
-       [ Shared State Memory (The "Table") ]
-       | Market Data | Sentiment | Signals |
-       +-----------------------------------+
-                        ^
-                        | (Read/Write)
-      +-----------------+-----------------+
-      |                 |                 |
-+-----+-----+     +-----+-----+     +-----+-----+
-| Data Agent|     | Quant     |     | Risk      |
-| (Fetcher) |     | Agent     |     | Agent     |
-+-----------+     +-----------+     +-----------+
-      |                 |                 |
-[Yahoo Finance]   [Math Models]    [Rule Engine]
+                                    [START]
+                                       |
+                                       v
++-----------------+           +-----------------+
+|   Data Agent    |---------->| Sentiment Agent |
+| (Yahoo Finance) |  (Data)   |    (Qdrant)     |
++-----------------+           +-----------------+
+                                       |
+                                       v
+                              +-----------------+
+                              |   Quant Agent   |
+                              |   (Tech Analysis)|
+                              +-----------------+
+                                       |
+                                       v
+                              +-----------------+
+                              |    Risk Agent   |
+                              |  (Gatekeeper)   |
+                              +-----------------+
+                                       |
+                                       v
+                              +-----------------+
+                              | Execution Agent |
+                              |     (Trade)     |
+                              +-----------------+
+                                       |
+                                       v
+                                     [END]
 ```
 
-**Key Takeaway**:
-*   **Nodes**: The Agents (Compute).
-*   **Edges**: The flow of control (Workflow).
-*   **State**: The context passed between them (Memory).
+**Key Learnings**:
+*   **State Management**: The `AgentState` (defined in `src/state.py`) is the "blood" of the system, carrying market data, sentiment scores, and trade signals between agents.
+*   **Circular Dependencies**: We learned that defining state in the same file as the graph can lead to circular imports when agents need to reference the state. Solution: Extract `AgentState` to a dedicated `src/state.py`.
 
 ---
 
-## 2. Hybrid Database Architecture
-**Concept**: Different data types require different storage engines. One size does not fit all.
+## 2. Local LLM Inference (Ollama Integration)
+**Concept**: Owning the "Brain". We replaced OpenAI with Ollama to run models locally.
 
-**Interview Soundbite**: *"I chose a hybrid approach: TimescaleDB for high-frequency market data because of its compression and time-series optimizations, and Qdrant for semantic search on news because of its efficient HNSW index."*
+**The Pivot**:
+*   Initially planned for OpenAI GPT-4.
+*   Switched to **Ollama** for local control.
+*   Attempted `gemma3:latest` but found it lacked tool-calling support.
+*   Standardized on `llama3.2:3b` which supports tool usage effectively.
 
-### ASCII Visualization: The Data Lakehouse
-```ascii
-          [ Application Layer ]
-                    |
-        +-----------+-----------+
-        |                       |
-        v                       v
-+---------------+       +---------------+
-|  TimescaleDB  |       |    Qdrant     |
-| (Relational)  |       |   (Vector)    |
-+---------------+       +---------------+
-| time | price  |       | vector | meta |
-| 10:00| 150.20 |       | [0.1..]| "CEO"|
-| 10:01| 150.25 |       | [0.9..]| "Buy"|
-+---------------+       +---------------+
-        ^                       ^
-        |                       |
-   [Structured]           [Unstructured]
-   (Ticks, OHLCV)         (News, Tweets)
-```
-
-**Key Takeaway**:
-*   **SQL (Timescale)**: Exact, aggregatable, time-ordered.
-*   **Vector (Qdrant)**: Fuzzy, semantic, similarity-based.
-
----
-
-## 3. Local Kubernetes (Kind) vs. Cloud
-**Concept**: Simulating a production environment locally ensures "Dev-Prod Parity".
-
-**Interview Soundbite**: *"To ensure deployment readiness without incurring cloud costs, I used Kind (Kubernetes in Docker). This allows me to define standard K8s manifests (Deployments, Services, PVCs) that can be applied to AWS EKS later with zero changes."*
-
-### ASCII Visualization: Kind Cluster
+### ASCII Visualization: Inference Stack
 ```ascii
 +--------------------------------------------------+
-|                  HOST MACHINE                    |
-|                                                  |
-|  +--------------------------------------------+  |
-|  |             Docker Container               |  |
-|  |  +--------------------------------------+  |  |
-|  |  |           Kind Node (K8s)            |  |  |
-|  |  |                                      |  |  |
-|  |  |  [Pod: API]  [Pod: DB]  [Pod: UI]    |  |  |
-|  |  |      |           |          |        |  |  |
-|  |  +------+-----------+----------+--------+  |  |
-|  |         |           |          |           |  |
-|  +---------|-----------|----------|-----------+  |
-|            |           |          |              |
-|         Port 80    Port 5432   Port 3000         |
+|                  Application Layer               |
+|  [LangChain / LangGraph] --> [ChatOllama Class]  |
++--------------------------------------------------+
+                        |
+                        v (HTTP POST /api/chat)
++--------------------------------------------------+
+|                 Docker Container                 |
+|  [Ollama Service (Port 11434)]                   |
+|           |                                      |
+|           v                                      |
+|    [Model: llama3.2:3b]                          |
 +--------------------------------------------------+
 ```
 
-**Key Takeaway**:
-*   **Kind**: Runs K8s nodes *inside* Docker containers.
-*   **Port Mapping**: Bridges the container world to your localhost.
+**Key Learnings**:
+*   **Model Selection Matters**: Not all LLMs are created equal. For agentic workflows, **Tool Calling** support is non-negotiable.
+*   **Configuration**: Centralizing model config in `.env` allows for hot-swapping "brains" without code changes.
 
 ---
 
-## 4. Vibe Coding & Agentic Workflow
-**Concept**: Moving from "Syntax" to "Intent".
+## 3. Hybrid Database & Infrastructure
+**Concept**: Polyglot Persistence. We set up a hybrid storage layer.
 
-**Interview Soundbite**: *"I utilized an Agent-First development workflow. Instead of writing boilerplate, I defined the 'Vibe' (Intent/Spec) and orchestrated AI agents to generate the implementation. My role shifted from 'Typist' to 'Architect' and 'Reviewer'."*
+*   **TimescaleDB**: For rigid, high-frequency time-series data (Stock Prices).
+*   **Qdrant**: For fluid, high-dimensional vector data (News Sentiment).
 
-**The Loop**:
-1.  **Prompt**: "Create a Risk Agent that rejects trades > 2%."
-2.  **Generate**: AI writes the Python class.
-3.  **Review**: Human checks logic.
-4.  **Refine**: "Add a check for volatility too."
+### ASCII Visualization: Infrastructure Map
+```ascii
+[Host Machine]
+      |
+      +--- [Docker Compose Network: hedge-net]
+                |
+                +--- [Service: timescaledb] (Port 5432)
+                |
+                +--- [Service: qdrant]      (Port 6333)
+                |
+                +--- [Service: ollama]      (Port 11434)
+```
+
+**Key Learnings**:
+*   **Dev-Prod Parity**: Using `kind` (Kubernetes in Docker) allows us to simulate a full K8s cluster locally, ensuring that our deployment manifests are battle-tested before ever touching a cloud provider.
 
 ---
 
-## 5. What We Learned Today (Summary)
-1.  **Infrastructure is Code**: We didn't click buttons; we wrote Docker Compose and K8s manifests.
-2.  **State is King**: In AI agents, managing the `State` object is more important than the prompt itself.
-3.  **Separation of Concerns**: Data ingestion is separate from Analysis, which is separate from Execution.
+## 4. What We Achieved
+1.  **Codebase Scaffolding**: Python project structure, linting (`ruff`), and dependency management.
+2.  **Infrastructure as Code**: `docker-compose.yml` and K8s manifests.
+3.  **Agent Implementation**: 5 functional agents with defined roles and tools.
+4.  **Verification**: Successfully ran the full agent loop using local LLMs.
 
-**Next Steps**: Tomorrow, we fill these empty vessels (Agents) with real logic and data.
+## 5. Next Steps (Day 2 Preview)
+*   **Brain Transplant**: Give the agents real logic. Currently, they are "hollow shells" with mocked tools.
+*   **Data Pipeline**: Connect the Data Agent to real Yahoo Finance data and store it in TimescaleDB.
+*   **Memory**: Implement the RAG pipeline for the Sentiment Agent using Qdrant.
