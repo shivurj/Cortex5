@@ -218,7 +218,7 @@
 ### Story 4.1: End-to-End Testing
 **Description**: Test the complete agent workflow with real market data.
 
-*   **Task 4.1.1**: Create Integration Test Script. [ ]
+*   **Task 4.1.1**: Create Integration Test Script. [x]
     *   **Agent Prompt**:
         > "Create `tests/test_integration.py`. Implement a test that:
         > 1. Starts with a clean database state.
@@ -232,7 +232,7 @@
         >    - `execution_status` is updated.
         > Use `pytest` framework."
 
-*   **Task 4.1.2**: Create Manual Testing Guide. [ ]
+*   **Task 4.1.2**: Create Manual Testing Guide. [x]
     *   **Agent Prompt**:
         > "Create `docs/testing_guide.md`. Document:
         > 1. How to start the infrastructure (`docker-compose up`).
