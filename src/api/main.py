@@ -8,7 +8,11 @@ from langchain_core.messages import HumanMessage
 
 from src.api.websocket_manager import manager
 from src.data.db_client import TimescaleDBClient
+from src.data.stock_universe import get_all_stocks
 from src.graph import create_graph
+from src.backtesting.engine import BacktestEngine
+from src.backtesting.metrics import calculate_all_metrics
+from pydantic import BaseModel
 
 app = FastAPI(title="Cortex5 API", version="1.0.0")
 
@@ -72,6 +76,14 @@ async def get_market_data(ticker: str, limit: int = 100):
             return []
         # Convert to list of dicts for JSON response
         return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/stocks")
+async def get_stocks():
+    """Get list of available stocks for analysis."""
+    try:
+        return get_all_stocks()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -140,3 +152,85 @@ async def websocket_endpoint(websocket: WebSocket):
                 asyncio.create_task(run_agent_analysis(ticker))
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+# Backtest request model
+class BacktestRequest(BaseModel):
+    tickers: List[str]
+    start_date: str  # ISO format
+    end_date: str    # ISO format
+    interval: str = '1d'
+    initial_capital: float = 100000.0
+
+# In-memory storage for backtest results (TODO: move to database)
+backtest_results = {}
+
+@app.post("/api/backtest/run")
+async def run_backtest(request: BacktestRequest):
+    """Run a backtest with given parameters."""
+    try:
+        # Parse dates
+        start_date = datetime.fromisoformat(request.start_date.replace('Z', '+00:00'))
+        end_date = datetime.fromisoformat(request.end_date.replace('Z', '+00:00'))
+        
+        # Create backtest ID
+        backtest_id = f"bt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Initialize engine
+        engine = BacktestEngine(
+            initial_capital=request.initial_capital,
+            commission_pct=0.001,
+            slippage_pct=0.0005
+        )
+        
+        # Load data
+        engine.load_historical_data(
+            tickers=request.tickers,
+            start_date=start_date,
+            end_date=end_date,
+            interval=request.interval
+        )
+        
+        # Use Agent Strategy
+        from src.backtesting.strategy_adapter import create_agent_strategy
+        
+        # We can pass a callback here if we want to stream logs via WebSocket in real-time
+        # For now, we'll rely on the engine collecting logs and returning them
+        strategy_func = create_agent_strategy()
+        
+        # Run backtest
+        results = engine.run(strategy_func, request.tickers)
+        
+        # Calculate metrics
+        metrics = calculate_all_metrics(
+            equity_curve=results['equity_curve'],
+            trades=results['trades']
+        )
+        
+        # Store results
+        backtest_results[backtest_id] = {
+            'id': backtest_id,
+            'parameters': request.dict(),
+            'equity_curve': results['equity_curve'].to_dict(orient='records'),
+            'trades': results['trades'],
+            'matched_trades': results.get('matched_trades', []),
+            'agent_logs': results.get('agent_logs', []),
+            'metrics': metrics,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        return {
+            'backtest_id': backtest_id,
+            'status': 'completed',
+            'metrics': metrics
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/backtest/results/{backtest_id}")
+async def get_backtest_results(backtest_id: str):
+    """Get results for a specific backtest."""
+    if backtest_id not in backtest_results:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+    
+    return backtest_results[backtest_id]

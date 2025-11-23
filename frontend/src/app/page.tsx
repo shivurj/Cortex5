@@ -4,17 +4,25 @@ import { useState } from 'react';
 import { AgentStatus } from '@/components/AgentStatus';
 import { PriceChart } from '@/components/PriceChart';
 import { TradeLog } from '@/components/TradeLog';
+import TickerSelector from '@/components/TickerSelector';
+import TimeframeSelector, { TimeframeConfig } from '@/components/TimeframeSelector';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import { Search, Play, Terminal } from 'lucide-react';
 
 export default function Dashboard() {
   const { isConnected, activeAgent, logs, analyzeTicker } = useAgentStream();
-  const [ticker, setTicker] = useState('AAPL');
+  const [selectedTickers, setSelectedTickers] = useState<string[]>(['AAPL']);
+  const [timeframe, setTimeframe] = useState<TimeframeConfig>({
+    type: 'longterm',
+    period: '1mo'
+  });
 
   const handleAnalyze = (e: React.FormEvent) => {
     e.preventDefault();
-    if (ticker) {
-      analyzeTicker(ticker);
+    if (selectedTickers.length > 0) {
+      // For now, analyze the first ticker
+      // TODO: Update backend to handle multiple tickers
+      analyzeTicker(selectedTickers[0]);
     }
   };
 
@@ -30,20 +38,29 @@ export default function Dashboard() {
               <Search size={20} className="text-emerald-500" />
               Target Acquisition
             </h2>
-            <form onSubmit={handleAnalyze} className="space-y-4">
+            <form onSubmit={handleAnalyze} className="space-y-6">
+              {/* Ticker Selection */}
               <div>
-                <label className="text-xs font-mono text-slate-500 uppercase">Ticker Symbol</label>
-                <input
-                  type="text"
-                  value={ticker}
-                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-xl font-mono focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder="AAPL"
+                <label className="text-xs font-mono text-slate-500 uppercase mb-2 block">
+                  Select Stocks (Max 10)
+                </label>
+                <TickerSelector
+                  selectedTickers={selectedTickers}
+                  onTickersChange={setSelectedTickers}
+                  maxSelection={10}
                 />
               </div>
+
+              {/* Timeframe Selection */}
+              <TimeframeSelector
+                value={timeframe}
+                onChange={setTimeframe}
+              />
+
+              {/* Analyze Button */}
               <button
                 type="submit"
-                disabled={!isConnected}
+                disabled={!isConnected || selectedTickers.length === 0}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
               >
                 <Play size={18} />
@@ -85,7 +102,7 @@ export default function Dashboard() {
         {/* Right: Agent Visualization & Charts */}
         <div className="lg:col-span-2 space-y-6">
           <AgentStatus activeAgent={activeAgent} />
-          <PriceChart ticker={ticker} />
+          <PriceChart ticker={selectedTickers[0] || 'AAPL'} />
         </div>
       </div>
 
