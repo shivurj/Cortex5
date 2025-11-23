@@ -15,6 +15,15 @@ dependencies = [
     "langchain-community",
     "langchain-openai",
     "langchain-ollama",
+    "psycopg2-binary",
+    "sentence-transformers",
+    "feedparser",
+    "requests",
+    "pandas",
+    "numpy",
+    "rich",
+    "pytest",
+    "python-dotenv",
 ]
 
 [tool.ruff]
