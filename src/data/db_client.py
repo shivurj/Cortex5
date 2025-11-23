@@ -110,8 +110,19 @@ class TimescaleDBClient:
             raise DatabaseError(f"Missing required columns: {missing}")
         
         # Prepare data for insertion
-        records = df[required_columns].to_records(index=False)
-        data = [tuple(row) for row in records]
+        # Convert DataFrame to list of tuples with explicit type casting
+        # psycopg2 doesn't handle numpy types well, so we cast to native types
+        data = []
+        for row in df[required_columns].itertuples(index=False):
+            data.append((
+                str(row.symbol),
+                row.timestamp,
+                float(row.open),
+                float(row.high),
+                float(row.low),
+                float(row.close),
+                int(row.volume)
+            ))
         
         query = """
             INSERT INTO market_data (symbol, timestamp, open, high, low, close, volume)

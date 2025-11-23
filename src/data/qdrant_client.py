@@ -194,13 +194,28 @@ class QdrantVectorStore:
                 )
             
             # Perform search
-            search_results = self.client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                query_filter=query_filter,
-                limit=top_k,
-                score_threshold=score_threshold
-            )
+            # Note: using search() method which is standard in v1.x
+            # If search() is missing, it might be an older/newer version issue
+            # trying query_points as fallback or primary if search fails
+            try:
+                search_results = self.client.search(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    query_filter=query_filter,
+                    limit=top_k,
+                    score_threshold=score_threshold
+                )
+            except AttributeError:
+                # Fallback for versions where search might be named differently or if using AsyncQdrantClient accidentally
+                # But here we use synchronous QdrantClient. 
+                # Let's try query_points which is the lower level API
+                search_results = self.client.query_points(
+                    collection_name=collection_name,
+                    query=query_vector,
+                    query_filter=query_filter,
+                    limit=top_k,
+                    score_threshold=score_threshold
+                ).points
             
             # Convert to SearchResult objects
             results = []
@@ -277,7 +292,7 @@ class QdrantVectorStore:
             
             return {
                 "name": collection_name,
-                "vectors_count": info.vectors_count,
+                "vectors_count": getattr(info, "vectors_count", None),
                 "points_count": info.points_count,
                 "status": info.status.value,
                 "vector_size": info.config.params.vectors.size,

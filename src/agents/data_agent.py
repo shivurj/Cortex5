@@ -78,7 +78,7 @@ class DataAgent(BaseAgent):
         # Fetch fresh data from Yahoo Finance
         try:
             print(f"📥 Fetching data from Yahoo Finance...")
-            df = self.fetcher.fetch_ohlcv(ticker, period="1mo", interval="1d")
+            df = self.fetcher.fetch_ohlcv(ticker, period="3mo", interval="1d")
             print(f"✓ Fetched {len(df)} rows")
             
             # Validate data
