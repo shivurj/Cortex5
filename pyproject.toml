@@ -1,0 +1,25 @@
+[project]
+name = "ai-hedge-fund"
+version = "0.1.0"
+description = "AI Hedge Fund powered by Cortex5"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph",
+    "fastapi",
+    "qdrant-client",
+    "torch",
+    "pydantic",
+    "yfinance",
+    "langchain",
+    "langchain-community",
+    "langchain-openai",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []

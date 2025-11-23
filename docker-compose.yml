@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - hedge-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.0
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - hedge-net
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - hedge-net
+    # Note: To pull the model on startup, we would typically use an entrypoint script or run a command after startup.
+    # For simplicity, we'll assume the user or a separate script pulls the model: `docker exec -it ollama ollama pull llama3:8b-instruct-q4_K_M`
+
+networks:
+  hedge-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  qdrant_storage:
+  ollama_models:
