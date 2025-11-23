@@ -24,6 +24,7 @@ dependencies = [
     "rich",
     "pytest",
     "python-dotenv",
+    "uvicorn",
 ]
 
 [tool.ruff]
