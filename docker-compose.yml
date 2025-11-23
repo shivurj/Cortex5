@@ -1,7 +1,8 @@
-version: '3.8'
+name: cortex5
 
 services:
   timescaledb:
+    container_name: cortex5-timescaledb
     image: timescale/timescaledb:latest-pg16
     ports:
       - "5432:5432"
@@ -12,12 +13,13 @@ services:
     networks:
       - hedge-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
   qdrant:
+    container_name: cortex5-qdrant
     image: qdrant/qdrant:v1.16.0
     ports:
       - "6333:6333"
@@ -27,6 +29,7 @@ services:
       - hedge-net
 
   ollama:
+    container_name: cortex5-ollama
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
@@ -34,8 +37,6 @@ services:
       - ollama_models:/root/.ollama
     networks:
       - hedge-net
-    # Note: To pull the model on startup, we would typically use an entrypoint script or run a command after startup.
-    # For simplicity, we'll assume the user or a separate script pulls the model: `docker exec -it ollama ollama pull llama3:8b-instruct-q4_K_M`
 
 networks:
   hedge-net:
