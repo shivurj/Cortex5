@@ -316,6 +316,35 @@ class TimescaleDBClient:
         except (IOError, psycopg2.Error) as e:
             raise DatabaseError(f"Failed to execute SQL file: {str(e)}")
     
+    def get_trades(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Fetch recent trades from the database.
+        
+        Args:
+            limit: Maximum number of trades to return
+            
+        Returns:
+            List of trade dictionaries
+        """
+        query = """
+            SELECT id, timestamp, symbol, side, quantity, price, status, sentiment_score, trade_signal, risk_approved
+            FROM trade_logs
+            ORDER BY timestamp DESC
+            LIMIT %s
+        """
+        
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, (limit,))
+                    columns = [desc[0] for desc in cursor.description]
+                    results = []
+                    for row in cursor.fetchall():
+                        results.append(dict(zip(columns, row)))
+                    return results
+        except psycopg2.Error as e:
+            raise DatabaseError(f"Failed to fetch trades: {str(e)}")
+
     def close(self) -> None:
         """Close all connections in the pool."""
         if self.connection_pool:
